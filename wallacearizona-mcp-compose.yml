@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  mcp-health-check:
+    image: python:3.12-slim
+    container_name: mcp-health-check
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./scripts/mcp-health-check.py:/app/health-check.py:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /tmp/mcp-check-results.json:/tmp/mcp-check-results.json
+    command: ["python3", "/app/health-check.py"]
+    # Note: For production, this should run as a cron job inside a permanent container
+    # or be run via the Hermes Agent cron system
+    networks:
+      - mcp-net
+
+  # Optional: Dedicated cron runner for health checks
+  mcp-cron:
+    image: crazymax/cron:3.1
+    container_name: mcp-cron-runner
+    restart: unless-stopped
+    volumes:
+      - ./scripts/mcp-health-check.py:/scripts/mcp-health-check.py:ro
+      - /tmp:/tmp
+    environment:
+      - CRONTAB=0 */2 * * * python3 /scripts/mcp-health-check.py
+    networks:
+      - mcp-net
+
+networks:
+  mcp-net:
+    external: true
+
+# Note: Add to existing docker-compose.yml or deploy separately
+# Health check results are written to /tmp/mcp-check-results.json
